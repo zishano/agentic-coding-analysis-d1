@@ -428,7 +428,8 @@ def extract_message_ids_from_jsonl(jsonl_path: Path) -> List[str]:
                     if msg.get('type') == 'assistant':
                         message_obj = msg.get('message', {})
                         msg_id = message_obj.get('id')
-                        if msg_id and msg_id.startswith('msg_'):
+                        # Accept both 'msg_' (message IDs) and 'resp_' (response IDs)
+                        if msg_id and (msg_id.startswith('msg_') or msg_id.startswith('resp_')):
                             message_ids.append(msg_id)
                 except:
                     pass
@@ -448,7 +449,8 @@ def build_message_id_map(conn) -> Dict[str, str]:
             response = json.loads(response_json)
             body = response.get('body', response)
             msg_id = body.get('id')
-            if msg_id and msg_id.startswith('msg_'):
+            # Accept both 'msg_' (message IDs) and 'resp_' (response IDs)
+            if msg_id and (msg_id.startswith('msg_') or msg_id.startswith('resp_')):
                 msg_id_map[msg_id] = req_id
         except:
             pass
@@ -477,12 +479,23 @@ def process_conversation(conn, conversation_id: str, jsonl_path: Path, msg_id_ma
 
     # Get indexed requests with their data
     placeholders = ','.join('?' * len(request_ids))
+
+    # Build time filter clause if needed
+    time_filter = ""
+    time_params = []
+    if args.start_time:
+        time_filter += " AND timestamp >= ?"
+        time_params.append(args.start_time)
+    if args.end_time:
+        time_filter += " AND timestamp <= ?"
+        time_params.append(args.end_time)
+
     indexed_reqs = cursor.execute(f"""
         SELECT id, timestamp, body, response
         FROM requests
-        WHERE id IN ({placeholders})
+        WHERE id IN ({placeholders}){time_filter}
         ORDER BY timestamp
-    """, request_ids).fetchall()
+    """, request_ids + time_params).fetchall()
 
     if not indexed_reqs:
         return None
@@ -495,10 +508,10 @@ def process_conversation(conn, conversation_id: str, jsonl_path: Path, msg_id_ma
     range_start = (first_ts - timedelta(seconds=300)).isoformat()
     range_end = (last_ts + timedelta(seconds=300)).isoformat()
 
-    # Use indexed requests directly — these are the non-streaming
-    # requests mapped from JSONL message IDs, which have complete
-    # metadata (stop_reason, content types, usage). The streaming
-    # partners in the DB are proxy artifacts and are not needed.
+    # Use indexed requests directly — these are the requests
+    # mapped from JSONL message IDs, which have complete
+    # metadata (stop_reason, content types, usage).
+    # classify_request() will automatically identify each as streaming ("s") or non-streaming ("n")
     conversation_reqs = list(indexed_reqs)
 
     if len(conversation_reqs) < args.min_requests:
@@ -770,12 +783,23 @@ def process_subagent(conn, agent_id: str, subagent_index: Dict[str, Dict],
 
     # Get indexed requests with their data
     placeholders = ','.join('?' * len(request_ids))
+
+    # Build time filter clause if needed
+    time_filter = ""
+    time_params = []
+    if args.start_time:
+        time_filter += " AND timestamp >= ?"
+        time_params.append(args.start_time)
+    if args.end_time:
+        time_filter += " AND timestamp <= ?"
+        time_params.append(args.end_time)
+
     indexed_reqs = cursor.execute(f"""
         SELECT id, timestamp, body, response
         FROM requests
-        WHERE id IN ({placeholders})
+        WHERE id IN ({placeholders}){time_filter}
         ORDER BY timestamp
-    """, request_ids).fetchall()
+    """, request_ids + time_params).fetchall()
 
     if not indexed_reqs:
         return None
@@ -1011,6 +1035,8 @@ def main():
                         help='Anonymize traces: replace IDs with sequential numbers, strip timestamps')
     parser.add_argument('--local-hash-ids', action='store_true', default=False,
                         help='Use per-conversation hash_ids instead of global (each conversation gets its own ID namespace)')
+    parser.add_argument('--start-time', help='Filter requests: only include those with timestamp >= this time (format: "YYYY-MM-DD HH:MM:SS")')
+    parser.add_argument('--end-time', help='Filter requests: only include those with timestamp <= this time (format: "YYYY-MM-DD HH:MM:SS")')
     args = parser.parse_args()
 
     jsonl_dir = Path(args.jsonl_dir)

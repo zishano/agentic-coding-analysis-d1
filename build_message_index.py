@@ -46,7 +46,8 @@ def build_message_id_index(db_path='./requests.db'):
                     resp_body = json.loads(resp_body)
 
                 msg_id = resp_body.get('id')
-                if msg_id and msg_id.startswith('msg_'):
+                # Accept both 'msg_' (message IDs) and 'resp_' (response IDs)
+                if msg_id and (msg_id.startswith('msg_') or msg_id.startswith('resp_')):
                     message_id_index[msg_id] = req_id
         except:
             pass

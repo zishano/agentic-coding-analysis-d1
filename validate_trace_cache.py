@@ -39,7 +39,8 @@ def extract_message_ids_from_jsonl(jsonl_path: Path) -> List[str]:
                     if msg.get('type') == 'assistant':
                         message_obj = msg.get('message', {})
                         msg_id = message_obj.get('id')
-                        if msg_id and msg_id.startswith('msg_'):
+                        # Accept both 'msg_' (message IDs) and 'resp_' (response IDs)
+                        if msg_id and (msg_id.startswith('msg_') or msg_id.startswith('resp_')):
                             message_ids.append(msg_id)
                 except:
                     pass

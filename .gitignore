@@ -52,3 +52,13 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Other
+.venv/
+projects/
+logs-*/
+traces-*/
+test_0907/
+tmp/
+hash_ids_merged/
+hasg_ids_cc/
