@@ -18,10 +18,10 @@ from datetime import datetime
 # ============================================================
 AGENTIC_DIR = "/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1"
 # DB          = "/home/lmk/claude-code-proxy/requests.db"
-DB         = "/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/test_0907/requests_0907.db"
+DB         = "/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/requests_20260828.db"
 
 # JSONL 的一级目录的【父目录】：脚本会自动收集它下面所有直接子目录中“含 *.jsonl”的目录
-JSONL_ROOT  = "/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/test_0907/projects"
+JSONL_ROOT  = "/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/projects"
 
 # 可选过滤(都是一级目录名的子串关键字，用文件名匹配)：
 #   JSONL_FILTER  : 只保留名字里含这些关键字的目录 (空列表=全部保留)
@@ -54,6 +54,7 @@ INCLUDE_SUBAGENTS = True     # 是否包含子代理 (True/False)
 INCLUDE_STREAMING = True     # 是否额外纳入 DB 流式请求(stream=true),让 trace 含 type=s 和 type=n
 SPLIT_GAP        = None       # 长会话按 N 秒切分; None=不切
 DO_VALIDATE      = True       # 是否跑 Step4 validate
+USE_LOCAL_HASH_IDS = True    # hash_id 范围: True=local(每会话独立), False=global(跨会话共享)
 
 # 按 requests.db 的请求 timestamp【过滤】参与 trace 的请求(可选)。
 #   留空 "" = 不过滤; 填了就只取时间窗口内的请求:
@@ -255,6 +256,8 @@ def main():
         extra += f' --start-time "{DB_START_TIME}"'
     if DB_END_TIME:
         extra += f' --end-time "{DB_END_TIME}"'
+    if USE_LOCAL_HASH_IDS:
+        extra += " --local-hash-ids"
     new = []
     for jd in JSONL_DIRS:
         ok3, out3 = sh(f'python3 build_minimal_traces.py "{DB}" '

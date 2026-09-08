@@ -61,4 +61,6 @@ traces-*/
 test_0907/
 tmp/
 hash_ids_merged/
-hasg_ids_cc/
+hash_ids_cc/
+hash_ids_merged_cc/
+hash_ids_merged_local/
