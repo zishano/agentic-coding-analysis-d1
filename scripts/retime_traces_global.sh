@@ -27,15 +27,15 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # *** 配置区域：根据你的实际路径修改 ***
 # ============================================================
 # 数据库和 JSONL 配置
-DEFAULT_DB="$PROJECT_DIR/requests_20260828.db"
-DEFAULT_JSONL_ROOT="$PROJECT_DIR/projects"
+DEFAULT_DB="$PROJECT_DIR/tmp/exported_requests.db"
+DEFAULT_JSONL_ROOT="$PROJECT_DIR/tmp/projects"
 DEFAULT_START_TIME=""
 DEFAULT_END_TIME=""
 DEFAULT_DRY_RUN="False"
 
 # 默认 traces 目录（可选，留空表示必须在命令行指定）
 # 示例: DEFAULT_TRACES_DIR="$PROJECT_DIR/traces-d1/traces-20260908_094608"
-DEFAULT_TRACES_DIR="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/traces-d1/traces-20260908_094608"
+DEFAULT_TRACES_DIR="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/traces-d1/traces-20260907_225453"
 
 # 默认是否合并输出
 DEFAULT_DO_MERGE=true
@@ -50,10 +50,11 @@ show_help() {
 将多个会话的 traces 重标记为全局时间线
 
 用法:
-  $0 TRACES_DIR [OPTIONS]
+  $0 [TRACES_DIR] [OPTIONS]
+  $0                      # 使用默认配置直接运行
 
 参数:
-  TRACES_DIR              traces 目录路径 (如果配置了默认值则可选)
+  TRACES_DIR              traces 目录路径 (可选，默认使用配置中的 DEFAULT_TRACES_DIR)
 
 选项:
   --db PATH               requests.db 路径 (默认: $DEFAULT_DB)
@@ -76,10 +77,16 @@ show_help() {
   - 默认会合并所有 traces 到 merged.jsonl
 
 示例:
-  # 基本使用（使用默认配置）
-  $0 /path/to/traces-dir
+  # 使用配置文件中的所有默认值，直接运行
+  $0
 
-  # 指定数据库和 JSONL 路径
+  # 使用默认配置，但指定不同的 traces 目录
+  $0 /path/to/other-traces-dir
+
+  # 覆盖数据库配置
+  $0 --db /path/to/requests.db --jsonl-root /path/to/projects
+
+  # 指定 traces 目录和数据库
   $0 /path/to/traces-dir \\
       --db /path/to/requests.db \\
       --jsonl-root /path/to/projects
@@ -211,27 +218,58 @@ echo "  MERGE_ONLY  : $MERGE_ONLY"
 echo "========================================================================"
 echo ""
 
-# 创建临时配置脚本来修改 Python 脚本的配置
+# 创建临时 Python 包装脚本来注入配置
 TEMP_WRAPPER=$(mktemp)
-cat > "$TEMP_WRAPPER" << EOF
+cat > "$TEMP_WRAPPER" << 'PYTHON_WRAPPER_EOF'
 #!/usr/bin/env python3
 import sys
+import os
 
-# 覆盖配置
-DB = "$DB"
-JSONL_ROOT = "$JSONL_ROOT"
-DB_START_TIME = "$START_TIME"
-DB_END_TIME = "$END_TIME"
-DRY_RUN = $DRY_RUN
+# 从环境变量读取并覆盖配置
+_DB = os.environ.get('RETIME_DB')
+_JSONL_ROOT = os.environ.get('RETIME_JSONL_ROOT')
+_DB_START_TIME = os.environ.get('RETIME_DB_START_TIME', '')
+_DB_END_TIME = os.environ.get('RETIME_DB_END_TIME', '')
 
-# 加载并执行原始脚本
-with open("$PYTHON_SCRIPT", 'r') as f:
+# 读取原始脚本
+with open(os.environ.get('PYTHON_SCRIPT'), 'r') as f:
     code = f.read()
-    # 执行代码
-    exec(code)
-EOF
+
+# 在执行前替换配置变量
+# 找到配置行并替换（支持多个空格）
+import re
+lines = code.split('\n')
+new_lines = []
+for line in lines:
+    stripped = line.strip()
+    # 替换 DB 配置（但排除 DB_START_TIME 和 DB_END_TIME）
+    if re.match(r'^DB\s*=\s*', stripped) and 'DB_START_TIME' not in line and 'DB_END_TIME' not in line:
+        indent = len(line) - len(line.lstrip())
+        new_lines.append(' ' * indent + f'DB = "{_DB}"')
+    elif re.match(r'^JSONL_ROOT\s*=\s*', stripped):
+        indent = len(line) - len(line.lstrip())
+        new_lines.append(' ' * indent + f'JSONL_ROOT = "{_JSONL_ROOT}"')
+    elif re.match(r'^DB_START_TIME\s*=\s*', stripped):
+        indent = len(line) - len(line.lstrip())
+        new_lines.append(' ' * indent + f'DB_START_TIME = "{_DB_START_TIME}"')
+    elif re.match(r'^DB_END_TIME\s*=\s*', stripped):
+        indent = len(line) - len(line.lstrip())
+        new_lines.append(' ' * indent + f'DB_END_TIME = "{_DB_END_TIME}"')
+    else:
+        new_lines.append(line)
+
+# 执行修改后的代码
+exec('\n'.join(new_lines))
+PYTHON_WRAPPER_EOF
 
 chmod +x "$TEMP_WRAPPER"
+
+# 设置环境变量
+export RETIME_DB="$DB"
+export RETIME_JSONL_ROOT="$JSONL_ROOT"
+export RETIME_DB_START_TIME="$START_TIME"
+export RETIME_DB_END_TIME="$END_TIME"
+export PYTHON_SCRIPT="$PYTHON_SCRIPT"
 
 # 构建 Python 命令参数
 PYTHON_ARGS="$TRACES_DIR"
