@@ -5,7 +5,8 @@
 #   ./count_requests.sh                                      # 默认显示按小时统计
 #   ./count_requests.sh --start "2026-08-28T11:00:00+08:00"  # 指定开始时间
 #   ./count_requests.sh --hourly --detail                    # 按小时统计+详细信息
-#
+#   ./scripts/count_db_requests.sh --start "2026-09-07 17:00:00" --end "2026-09-07 18:00:00"
+
 # 参数:
 #   --db PATH          数据库路径 (默认: requests_20260828.db)
 #   --start TIME       开始时间 (格式: "YYYY-MM-DDTHH:MM:SS+08:00")
@@ -29,7 +30,7 @@ DEFAULT_DB="$PROJECT_DIR/tmp/exported_requests.db"
 # ============================================================
 
 # Python脚本路径
-PYTHON_SCRIPT="$PROJECT_DIR/count_requests_by_time.py"
+PYTHON_SCRIPT="$PROJECT_DIR/count_db_requests.py"
 
 # 检查Python脚本是否存在
 if [ ! -f "$PYTHON_SCRIPT" ]; then

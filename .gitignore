@@ -56,11 +56,16 @@ Thumbs.db
 # Other
 .venv/
 projects/
-logs-*/
-traces-*/
+logs*/
+traces*/
+log*/
+trace*/
 test_0907/
 tmp/
 hash_ids_merged/
 hash_ids_cc/
 hash_ids_merged_cc/
 hash_ids_merged_local/
+scripts_no_use/
+tool_no_use/
+learn*/

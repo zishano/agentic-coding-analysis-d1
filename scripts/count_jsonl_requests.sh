@@ -1,0 +1,49 @@
+#!/bin/bash
+# 统计 JSONL 文件中指定时间段的请求数量
+#
+# 用法:
+#   ./count_jsonl_requests.sh                                     # 默认显示按小时统计
+#   ./count_jsonl_requests.sh --start "2026-09-07T17:00:00+08:00" # 指定开始时间
+#   ./count_jsonl_requests.sh --hourly --detail                   # 按小时统计+详细信息
+#   ./scripts/count_jsonl_requests.sh --start "2026-09-07 17:00:00" --end "2026-09-07 18:00:00"
+
+# 参数:
+#   --jsonl-root PATH  JSONL 根目录路径 (默认: tmp/projects)
+#   --start TIME       开始时间 (格式: "YYYY-MM-DDTHH:MM:SS+08:00")
+#   --end TIME         结束时间 (格式: "YYYY-MM-DDTHH:MM:SS+08:00")
+#   --hourly           按小时统计
+#   --by-session       按会话统计
+#   --by-project       按项目目录统计
+#   --detail           显示详细信息
+#   --help             显示帮助
+
+set -e
+
+# 获取脚本所在目录的父目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# ============================================================
+# *** 配置区域：根据你的实际路径修改 ***
+# ============================================================
+# 默认 JSONL 根目录
+DEFAULT_JSONL_ROOT="$PROJECT_DIR/tmp/projects"
+# ============================================================
+
+# Python脚本路径
+PYTHON_SCRIPT="$PROJECT_DIR/count_jsonl_requests.py"
+
+# 检查Python脚本是否存在
+if [ ! -f "$PYTHON_SCRIPT" ]; then
+    echo "❌ 错误: 找不到 Python 脚本: $PYTHON_SCRIPT"
+    exit 1
+fi
+
+# 如果没有指定--jsonl-root参数，添加默认路径
+if [[ ! "$*" =~ "--jsonl-root" ]]; then
+    set -- --jsonl-root "$DEFAULT_JSONL_ROOT" "$@"
+fi
+
+# 执行Python脚本
+cd "$PROJECT_DIR"
+python3 "$PYTHON_SCRIPT" "$@"

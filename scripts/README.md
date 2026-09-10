@@ -1,318 +1,369 @@
-# Scripts 使用说明
+# 请求统计脚本使用指南
 
-这个目录包含了 agentic-coding-analysis 项目的常用脚本，用于分析和处理 Claude Code 的请求数据。
+本目录包含用于统计数据库和 JSONL 文件中请求数量的脚本。
 
-## 📋 脚本列表
+## 📁 脚本列表
 
-### 1. count_requests.sh
-统计 requests.db 中指定时间段的请求数量
+### 1. `count_requests.sh` - 统计数据库请求
 
-**功能：**
-- 按小时统计请求分布
-- 按会话统计请求数
-- 显示详细的 token 和模型信息
-- 支持时间范围过滤
+统计 requests.db 中指定时间段的请求数量。
 
-**用法：**
+**用法**：
 ```bash
 # 默认显示按小时统计
-./count_requests.sh
+./scripts/count_requests.sh
 
 # 指定时间范围
-./count_requests.sh --start "2026-08-28T11:00:00+08:00" --end "2026-08-28T12:00:00+08:00"
+./scripts/count_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00"
 
-# 显示详细信息
-./count_requests.sh --hourly --detail
+# 显示详细信息（模型、token等）
+./scripts/count_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --detail
 
-# 按会话统计
-./count_requests.sh --by-session
-
-# 查看帮助
-./count_requests.sh --help
-```
-
-**对应 Python 脚本：** `../count_requests_by_time.py`
-
----
-
-### 2. run_trace_generations.sh
-一键生成 trace 文件的完整流程
-
-**功能：**
-- Step 1: 从 requests.db 提取 message IDs
-- Step 2: 建立会话关联索引
-- Step 3: 生成 trace 文件（包含 hash_ids）
-- Step 4: 验证 trace 缓存
-
-**用法：**
-```bash
-# 使用默认配置运行
-./run_trace_generations.sh
-
-# 指定数据库和时间范围
-./run_trace_generations.sh \
-    --db /path/to/requests.db \
-    --start-time "2026-08-28T11:00:00+08:00" \
-    --end-time "2026-08-28T13:00:00+08:00"
-
-# 完整配置示例
-./run_trace_generations.sh \
-    --db /path/to/requests.db \
-    --jsonl-root /path/to/projects \
-    --out-root /path/to/traces-d1 \
-    --log-dir /path/to/logs-d1 \
-    --start-time "2026-08-28T11:00:00+08:00" \
-    --end-time "2026-08-28T13:00:00+08:00" \
-    --block-size 64 \
-    --include-subagents \
-    --local-hash-ids
-
-# 查看帮助和所有选项
-./run_trace_generations.sh --help
-```
-
-**可用选项：**
-- `--db PATH` - requests.db 路径
-- `--jsonl-root PATH` - JSONL 目录根路径
-- `--out-root PATH` - 输出根目录
-- `--log-dir PATH` - 日志目录
-- `--start-time TIME` - 开始时间（格式：`YYYY-MM-DDTHH:MM:SS+08:00`）
-- `--end-time TIME` - 结束时间（格式：`YYYY-MM-DDTHH:MM:SS+08:00`）
-- `--block-size N` - prompt 分块大小（默认：64）
-- `--min-requests N` - 最小请求数（默认：1）
-- `--include-subagents` - 包含子代理（默认）
-- `--no-subagents` - 不包含子代理
-- `--local-hash-ids` - 使用 local hash_ids（默认）
-- `--global-hash-ids` - 使用 global hash_ids
-- `--no-validate` - 跳过验证步骤
-
-**输出：**
-- traces: `OUT_ROOT/traces-<时间戳>/`
-- 日志: `LOG_DIR/run_<时间戳>.log`
-
-**对应 Python 脚本：** `../run_trace_generations.py`
-
----
-
-### 3. extract_hash_ids.sh
-从 traces.jsonl 提取所有 Hash ID 分配信息
-
-**功能：**
-- 提取每个请求的实际 hash_ids 范围
-- 对于不连续的 hash_ids，横向展示多个范围
-- 对于 subagent，展开其内部的每个 request
-- 生成 CSV 统计报告
-
-**用法：**
-```bash
-# 使用默认路径
-./extract_hash_ids.sh
-
-# 指定输入文件
-./extract_hash_ids.sh /path/to/traces.jsonl
-
-# 指定输入和输出目录
-./extract_hash_ids.sh /path/to/traces.jsonl /path/to/output
-```
-
-**输出文件：**
-- `traces_all_data.csv` - 所有请求的详细信息
-- `traces_statistics.csv` - 统计摘要
-
-**对应 Python 脚本：** `../extract_hash_ids_expanded.py`
-
----
-
-### 4. retime_traces_global.sh
-将多个会话的 traces 重标记为全局时间线
-
-**功能：**
-- 将每个 trace 的时间戳重标记为相对于全局起点的时间
-- 全局起点 = 所有会话中最早的请求时间
-- 自动合并所有 traces 到一个文件
-
-**用法：**
-```bash
-# 基本使用（使用默认配置）
-./retime_traces_global.sh /path/to/traces-dir
-
-# 指定数据库和 JSONL 路径
-./retime_traces_global.sh /path/to/traces-dir \
-    --db /path/to/requests.db \
-    --jsonl-root /path/to/projects
-
-# 带时间过滤
-./retime_traces_global.sh /path/to/traces-dir \
-    --start-time "2026-08-28T11:00:00+08:00" \
-    --end-time "2026-08-28T13:00:00+08:00"
-
-# 预览模式（不实际写入）
-./retime_traces_global.sh /path/to/traces-dir --dry-run
-
-# 不合并输出
-./retime_traces_global.sh /path/to/traces-dir --no-merge
-
-# 查看帮助
-./retime_traces_global.sh --help
-```
-
-**可用选项：**
-- `--db PATH` - requests.db 路径
-- `--jsonl-root PATH` - JSONL 根目录路径
-- `--start-time TIME` - 数据库时间过滤（开始）
-- `--end-time TIME` - 数据库时间过滤（结束）
-- `--dry-run` - 预览模式，不实际写入文件
-- `--no-merge` - 不合并输出文件
-- `--merge-only` - 只合并，不重标记
-
-**输出：**
-- 输出目录: `<源文件夹>_global/`
-- 合并文件: `<源文件夹>_global/merged.jsonl`
-
-**对应 Python 脚本：** `../retime_traces_global.py`
-
----
-
-### 5. export_db.sh
-导出指定时间段的请求到新数据库
-
-**功能：**
-- 从大型数据库中提取特定时间段的数据
-- 创建一个小的独立数据库便于分析
-- 支持按时间范围、最近 N 条、会话 ID 导出
-- 可选择只导出有响应的请求
-
-**用法：**
-```bash
-# 使用默认数据库，导出指定时间范围
-./export_db.sh --start-time "2026-08-28T00:00:00+08:00" \
-    --end-time "2026-08-28T23:59:59+08:00"
+# 按小时统计
+./scripts/count_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --hourly
 
 # 指定数据库路径
-./export_db.sh source.db output.db \
-    --start-time "2026-08-28T00:00:00+08:00" \
-    --end-time "2026-08-28T23:59:59+08:00"
-
-# 只导出有响应的请求
-./export_db.sh source.db output.db \
-    --start-time "2026-08-28T00:00:00+08:00" \
-    --end-time "2026-08-28T23:59:59+08:00" \
-    --only-with-response
-
-# 导出最近 1000 条记录
-./export_db.sh source.db output.db --last 1000
-
-# 导出指定会话
-./export_db.sh source.db output.db --conversation-id abc123
-
-# 查看帮助
-./export_db.sh --help
+./scripts/count_requests.sh \
+  --db /path/to/requests.db \
+  --start "2026-09-07T17:00:00+08:00"
 ```
 
-**可用选项：**
-- `--start-time TIME` - 开始时间（格式：`YYYY-MM-DDTHH:MM:SS+08:00`）
-- `--end-time TIME` - 结束时间（格式：`YYYY-MM-DDTHH:MM:SS+08:00`）
-- `--last N` - 导出最近 N 条记录
-- `--conversation-id ID` - 导出指定会话的所有请求
-- `--only-with-response` - 只导出有响应的请求
-
-**输出：**
-- 新的 SQLite 数据库文件
-- 包含指定条件的所有请求记录
-
-**对应 Python 脚本：** `../tools/analyze_db_quick.py`
-
----
-
-## 🔄 典型工作流程
-
-### 完整的分析流程：
-
-```bash
-# 1. 先查看数据库中有多少请求
-./count_requests.sh --hourly --detail
-
-# 2. 根据需要的时间范围，编辑 run_trace_generations.py 中的配置
-#    设置 DB_START_TIME 和 DB_END_TIME
-
-# 3. 生成 trace 文件
-./run_trace_generations.sh
-
-# 4. 将 traces 重标记为全局时间线
-./retime_traces_global.sh /path/to/traces-20260908_094608
-
-# 5. 提取 hash_ids 信息
-./extract_hash_ids.sh /path/to/traces-20260908_094608_global/merged.jsonl
+**输出示例**：
 ```
-
----
-
-## ⚠️ 重要注意事项
-
-### 时间格式
-所有涉及时间过滤的参数**必须使用带时区的 ISO 8601 格式**：
-
-✅ **正确：** `2026-08-28T11:00:00+08:00`  
-❌ **错误：** `2026-08-28 11:00:00`（会查询不到数据）
-
-**原因：** SQLite 使用字符串比较，格式必须与数据库中的时间戳格式完全一致。
-
-详细说明请参考：`../TIME_FILTER_GUIDE.md`
-
-### 数据库路径
-确保各个脚本中的数据库路径正确指向你的 `requests.db` 文件。
-
-### JSONL 目录
-确保 JSONL 目录结构正确，每个会话目录包含 `*.jsonl` 文件。
-
----
-
-## 📊 输出示例
-
-### count_requests.sh 输出：
-```
-📊 数据库: requests_20260828.db
+📊 数据库: tmp/exported_requests.db
 ======================================================================
+⏰ 开始时间: 2026-09-07T17:00:00+08:00
+⏰ 结束时间: 2026-09-08T01:00:00+08:00
 
-✅ 总请求数: 12,121
+✅ 总请求数: 29,147
 
 📅 实际时间范围:
-   最早: 2026-08-28T11:00:13+08:00
-   最晚: 2026-08-28T13:00:00+08:00
+   最早: 2026-09-07T17:00:16+08:00
+   最晚: 2026-09-08T01:00:00+08:00
 
 ⏰ 按小时统计:
-   共 3 个小时有请求
-
-   2026-08-28T11:00:00+08:00 | 5,927 请求 ( 48.9%) ████████████████████████
-   2026-08-28T12:00:00+08:00 | 6,193 请求 ( 51.1%) █████████████████████████
-   2026-08-28T13:00:00+08:00 |     1 请求 (  0.0%)
+   2026-09-07T17:00:00+08:00 | 4,741 请求 (  8.4%) ████
+   2026-09-07T18:00:00+08:00 | 3,428 请求 (  6.1%) ███
+   ...
 ```
 
 ---
 
-## 🛠️ 故障排除
+### 2. `count_jsonl_requests.sh` - 统计 JSONL 请求
 
-### 问题：查询不到任何请求
-**解决方案：** 检查时间格式是否正确，必须使用 `YYYY-MM-DDTHH:MM:SS+08:00` 格式
+统计 JSONL 文件中指定时间段的请求数量。
 
-### 问题：找不到 Python 脚本
-**解决方案：** 确保从 `scripts/` 目录运行脚本，或使用绝对路径
+**用法**：
+```bash
+# 默认显示按小时统计
+./scripts/count_jsonl_requests.sh
 
-### 问题：权限被拒绝
-**解决方案：** 运行 `chmod +x *.sh` 给脚本添加执行权限
+# 指定时间范围
+./scripts/count_jsonl_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00"
+
+# 显示详细信息（模型、token等）
+./scripts/count_jsonl_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --detail
+
+# 按小时统计
+./scripts/count_jsonl_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --hourly
+
+# 按会话统计
+./scripts/count_jsonl_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --by-session
+
+# 按项目目录统计
+./scripts/count_jsonl_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --by-project
+
+# 指定 JSONL 根目录
+./scripts/count_jsonl_requests.sh \
+  --jsonl-root /path/to/projects \
+  --start "2026-09-07T17:00:00+08:00"
+```
+
+**输出示例**：
+```
+📊 JSONL 目录: tmp/projects
+======================================================================
+🔍 扫描 JSONL 文件...
+   发现 9639 个 JSONL 文件
+📖 读取消息...
+   266 个文件包含符合条件的消息
+======================================================================
+
+✅ 总请求数: 5,127
+   唯一 message_id: 5,127
+   唯一会话数: 266
+
+📅 实际时间范围:
+   最早: 2026-09-07T09:00:17+00:00
+   最晚: 2026-09-07T16:59:53+00:00
+
+⏰ 按小时统计:
+   2026-09-07T09:00:00+0000 |   949 请求 ( 18.5%) █████████
+   2026-09-07T10:00:00+0000 |   640 请求 ( 12.5%) ██████
+   ...
+
+🤖 按模型统计:
+   gpt-5.6-luna: 4,601 请求 (89.7%)
+   gpt-5.6-terra: 518 请求 (10.1%)
+
+💰 Token 统计:
+   输入 tokens: 6,376,035  平均: 1,243
+   输出 tokens: 5,063,493  平均: 987
+   合计: 11,439,528
+```
+
+---
+
+### 3. `compare_db_jsonl.sh` - 对比数据库和 JSONL
+
+同时统计数据库和 JSONL 的请求数量，并显示对比分析。
+
+**用法**：
+```bash
+# 使用默认配置
+./scripts/compare_db_jsonl.sh
+
+# 指定时间范围
+./scripts/compare_db_jsonl.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00"
+
+# 指定数据库和 JSONL 路径
+./scripts/compare_db_jsonl.sh \
+  --db /path/to/requests.db \
+  --jsonl-root /path/to/projects \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00"
+```
+
+**输出示例**：
+```
+========================================================================
+数据库 vs JSONL 对比统计
+========================================================================
+
+1️⃣ 统计数据库请求...
+✅ 总请求数: 29,147
+
+2️⃣ 统计 JSONL 请求...
+✅ 总请求数: 5,127
+
+3️⃣ 对比分析
+========================================================================
+
+指标                               数据库           JSONL
+------------------------------------------------------------------------
+总请求数                            29,147           5,127
+
+📊 JSONL 覆盖率: 17.6%
+
+❌ 缺失的请求: 24,020 个
+
+可能的原因：
+  1. 流式/非流式配对 - 数据库有2个请求，JSONL只记录1个
+  2. 非 Claude Code 会话 - 直接 API 调用、Web UI 等
+  3. 不完整的会话 - 测试请求、失败请求等
+  4. JSONL 选择性导出 - 只导出特定项目/目录
+```
+
+---
+
+## 🔧 参数说明
+
+### 通用参数
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `--start TIME` | 开始时间 | `--start "2026-09-07T17:00:00+08:00"` |
+| `--end TIME` | 结束时间 | `--end "2026-09-08T01:00:00+08:00"` |
+| `--detail` | 显示详细信息 | `--detail` |
+| `--hourly` | 按小时统计 | `--hourly` |
+
+### 数据库专用参数
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--db PATH` | 数据库路径 | `tmp/exported_requests.db` |
+
+### JSONL 专用参数
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--jsonl-root PATH` | JSONL 根目录 | `tmp/projects` |
+| `--by-session` | 按会话统计 | - |
+| `--by-project` | 按项目目录统计 | - |
+
+---
+
+## 📝 时间格式
+
+支持以下时间格式：
+
+1. **ISO 8601 完整格式**（推荐）
+   ```
+   2026-09-07T17:00:00+08:00
+   ```
+
+2. **简化格式**（自动添加时区）
+   ```
+   2026-09-07 17:00:00
+   ```
+
+3. **UTC 格式**
+   ```
+   2026-09-07T09:00:00Z
+   ```
+
+**注意**：
+- JSONL 文件中的时间戳是 UTC 时区（Z 结尾）
+- 数据库中的时间戳是 +08:00 时区
+- 脚本会自动处理时区转换
+
+---
+
+## 🎯 使用场景
+
+### 场景 1: 快速查看某个时间段的请求量
+
+```bash
+./scripts/count_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --hourly
+```
+
+### 场景 2: 分析 token 使用情况
+
+```bash
+./scripts/count_jsonl_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --detail
+```
+
+### 场景 3: 查看哪些会话最活跃
+
+```bash
+./scripts/count_jsonl_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --by-session
+```
+
+### 场景 4: 分析哪些项目使用最多
+
+```bash
+./scripts/count_jsonl_requests.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00" \
+  --by-project
+```
+
+### 场景 5: 对比数据库和 JSONL 的覆盖率
+
+```bash
+./scripts/compare_db_jsonl.sh \
+  --start "2026-09-07T17:00:00+08:00" \
+  --end "2026-09-08T01:00:00+08:00"
+```
+
+---
+
+## 📊 理解输出
+
+### 数据库统计
+
+- **总请求数**：数据库中所有的 HTTP 请求（包括流式和非流式）
+- **有响应的请求**：成功完成的请求
+- **无响应的请求**：失败或未完成的请求
+
+### JSONL 统计
+
+- **总请求数**：JSONL 中记录的 assistant 消息数量
+- **唯一 message_id**：去重后的消息数量
+- **唯一会话数**：不同的 sessionId 数量
+
+### 覆盖率
+
+JSONL 覆盖率 = (JSONL 请求数 / 数据库请求数) × 100%
+
+通常在 15-40% 之间，原因：
+1. 数据库包含流式和非流式两个请求，JSONL 只记录一次
+2. 数据库包含所有类型的请求（API、Web UI 等），JSONL 只有 Claude Code 会话
+3. JSONL 可能只导出了部分项目/目录
+
+---
+
+## 🐛 故障排除
+
+### 问题 1: "数据库文件不存在"
+
+**解决方案**：
+```bash
+# 检查数据库路径
+ls -lh tmp/exported_requests.db
+
+# 或指定正确的路径
+./scripts/count_requests.sh --db /correct/path/to/requests.db
+```
+
+### 问题 2: "JSONL 根目录不存在"
+
+**解决方案**：
+```bash
+# 检查 JSONL 目录
+ls -lh tmp/projects/
+
+# 或指定正确的路径
+./scripts/count_jsonl_requests.sh --jsonl-root /correct/path/to/projects
+```
+
+### 问题 3: "没有找到符合条件的请求"
+
+**可能原因**：
+1. 时间范围不正确
+2. 数据库或 JSONL 中确实没有该时间段的数据
+3. 时区设置问题
+
+**解决方案**：
+```bash
+# 不指定时间范围，查看所有数据
+./scripts/count_requests.sh
+
+# 或检查实际的时间范围
+./scripts/count_requests.sh --detail
+```
 
 ---
 
 ## 📚 相关文档
 
-- `../TIME_FILTER_GUIDE.md` - 时间过滤详细指南
-- `../run_trace_generations.py` - trace 生成主脚本
-- `../AGENTS.md` - 项目总体说明
+- [ANALYSIS_REPORT.md](../ANALYSIS_REPORT.md) - 详细的数据分析报告
+- [JSONL_ROLE_EXPLAINED.md](../JSONL_ROLE_EXPLAINED.md) - JSONL 文件的作用说明
 
 ---
 
-## 📝 维护信息
-
-这些脚本是 Python 脚本的 Shell 封装，提供更友好的命令行接口。
-
-如需修改核心逻辑，请编辑对应的 Python 脚本。
+**更新时间**: 2026-09-09  
+**维护者**: AI Lab
