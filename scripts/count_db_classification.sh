@@ -21,7 +21,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # *** 配置区域：根据你的实际路径修改 ***
 # ============================================================
 # 默认数据库路径
-DEFAULT_DB="$PROJECT_DIR/tmp/exported_requests.db"
+DEFAULT_DB="/mnt/nvme1n1/data/lmk/PROJECT/claude-code-proxy-p1/requests.db"
 # ============================================================
 
 # Python脚本路径

@@ -27,7 +27,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # *** 配置区域：根据你的实际路径修改 ***
 # ============================================================
 # 默认 JSONL 根目录
-DEFAULT_JSONL_ROOT="$PROJECT_DIR/tmp/projects"
+DEFAULT_JSONL_ROOT="/home/ai_lab/.claude/projects/-mnt-nvme1n1-data-lmk-PROJECT-claude-code-proxy-p1"
 # ============================================================
 
 # Python脚本路径

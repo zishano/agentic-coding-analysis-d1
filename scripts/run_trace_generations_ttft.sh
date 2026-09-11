@@ -123,7 +123,7 @@ agentic-coding-analysis 一键生成 trace
 流程:
   Step 1: build_message_index - 从 DB 提取 message IDs
   Step 2: build_conversation_index - 建立会话关联索引
-  Step 3: build_minimal_traces - 生成 trace 文件
+  Step 3: build_minimal_traces_ttft - 生成 trace 文件
   Step 4: validate_trace_cache - 验证 trace 缓存
 
 示例:
@@ -534,7 +534,7 @@ def main():
     print(f"      总关联: {mapped_total} 条")
 
     # Step3: 生成 trace
-    print("\n>>> [Step3] build_minimal_traces ===")
+    print("\n>>> [Step3] build_minimal_traces_ttft ===")
     extra = f"--block-size {BLOCK_SIZE} --min-requests {MIN_REQUESTS}"
     if INCLUDE_SUBAGENTS:
         extra += " --include-subagents"
@@ -547,7 +547,7 @@ def main():
 
     new = []
     for jd in relevant_dirs:
-        ok3, out3 = sh(f'python3 build_minimal_traces.py "{DB}" '
+        ok3, out3 = sh(f'python3 build_minimal_traces_ttft.py "{DB}" '
                        f'--jsonl-dir "{jd}" --output-dir "{OUT_DIR}" {extra}')
         for f in glob.glob(os.path.join(OUT_DIR, "*.json")):
             if f not in new:

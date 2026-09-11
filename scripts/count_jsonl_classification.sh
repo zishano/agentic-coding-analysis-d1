@@ -21,7 +21,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # *** 配置区域：根据你的实际路径修改 ***
 # ============================================================
 # 默认 JSONL 根目录
-DEFAULT_JSONL_ROOT="$PROJECT_DIR/tmp/projects"
+DEFAULT_JSONL_ROOT="/home/ai_lab/.claude/projects/-mnt-nvme1n1-data-lmk-PROJECT-claude-code-proxy-p1"
 # ============================================================
 
 # Python脚本路径
@@ -52,5 +52,11 @@ if [[ "$*" =~ "--help" ]]; then
     exit 0
 fi
 
-# 调用Python脚本，传递所有参数
-exec python3 "$PYTHON_SCRIPT" "$@"
+# 检查是否指定了 --jsonl-root，如果没有则使用默认值
+if [[ "$*" =~ "--jsonl-root" ]]; then
+    # 用户指定了 --jsonl-root，直接传递所有参数
+    exec python3 "$PYTHON_SCRIPT" "$@"
+else
+    # 用户没有指定，添加默认的 --jsonl-root
+    exec python3 "$PYTHON_SCRIPT" --jsonl-root "$DEFAULT_JSONL_ROOT" "$@"
+fi

@@ -35,7 +35,7 @@ DEFAULT_DRY_RUN="False"
 
 # 默认 traces 目录（可选，留空表示必须在命令行指定）
 # 示例: DEFAULT_TRACES_DIR="$PROJECT_DIR/traces-d1/traces-20260908_094608"
-DEFAULT_TRACES_DIR="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/traces-d1/traces-20260909_222334"
+DEFAULT_TRACES_DIR="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/traces-d1/traces-20260910_150523"
 
 # 默认是否合并输出
 DEFAULT_DO_MERGE=true
