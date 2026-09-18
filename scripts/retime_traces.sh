@@ -2,7 +2,7 @@
 # 将多个会话的 traces 重标记为全局时间线
 #
 # 用法:
-#   ./retime_traces_global.sh TRACES_DIR [OPTIONS]
+#   ./scripts/retime_traces.sh TRACES_DIR [OPTIONS]
 #
 # 参数:
 #   TRACES_DIR              traces 目录路径 (必需)
@@ -27,18 +27,21 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # *** 配置区域：根据你的实际路径修改 ***
 # ============================================================
 # 数据库和 JSONL 配置
-DEFAULT_DB="$PROJECT_DIR/tmp/exported_requests.db"
-DEFAULT_JSONL_ROOT="$PROJECT_DIR/tmp/projects"
+DEFAULT_DB="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/tmp/tmp_20260917/requests.db"
+DEFAULT_JSONL_ROOT="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/tmp/tmp_20260917/projects"
 DEFAULT_START_TIME=""
 DEFAULT_END_TIME=""
 DEFAULT_DRY_RUN="False"
-
+DEFAULT_USE_LOCAL_HASH_IDS="false"
 # 默认 traces 目录（可选，留空表示必须在命令行指定）
 # 示例: DEFAULT_TRACES_DIR="$PROJECT_DIR/traces-d1/traces-20260908_094608"
-DEFAULT_TRACES_DIR="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/traces-d1/traces-20260910_150523"
+DEFAULT_TRACES_DIR="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/traces-d1/traces-20260918_093301-2026-09-16T00:00:00+08:00-2026-09-17T19:30:00+08:00"
 
 # 默认是否合并输出
 DEFAULT_DO_MERGE=true
+
+# 默认是否使用全局时间线（true: 统一时间线，false: 保持独立时间线）
+DEFAULT_GLOBAL_TIMELINE=false
 # ============================================================
 
 # Python脚本路径
@@ -64,17 +67,21 @@ show_help() {
   --dry-run               预览模式，不实际写入文件
   --no-merge              不合并输出文件
   --merge-only            只合并，不重标记
+  --global-timeline       使用全局时间线，统一所有trace到同一起点 (默认)
+  --no-global-timeline    保持独立时间线，每条trace从0开始
   --help, -h              显示此帮助信息
 
 默认配置:
   DEFAULT_TRACES_DIR      : ${DEFAULT_TRACES_DIR:-<未设置，必须在命令行指定>}
   DEFAULT_DO_MERGE        : ${DEFAULT_DO_MERGE}
+  DEFAULT_GLOBAL_TIMELINE : ${DEFAULT_GLOBAL_TIMELINE}
 
 说明:
   - 将每个 trace 的时间戳重标记为相对于全局起点的时间
   - 全局起点 = 所有会话中最早的请求时间
   - 输出到 <源文件夹>_global/ 新文件夹
   - 默认会合并所有 traces 到 merged.jsonl
+  - 可选择保持每条trace的独立时间线（--no-global-timeline）
 
 示例:
   # 使用配置文件中的所有默认值，直接运行
@@ -98,8 +105,20 @@ show_help() {
 
   # 预览模式
   $0 /path/to/traces-dir --dry-run
+
+  # 保持独立时间线，每条trace从0开始
+  $0 /path/to/traces-dir --no-global-timeline
+
+  # 只合并，不重标记时间
+  $0 /path/to/traces-dir --merge-only
 EOF
 }
+
+# 检查是global还是local
+g_or_l="local"
+if [[ "DEFAULT_GLOBAL_TIMELINE" == "true" ]] ; then
+    g_or_l="global"
+fi
 
 # 检查Python脚本是否存在
 if [ ! -f "$PYTHON_SCRIPT" ]; then
@@ -138,6 +157,7 @@ END_TIME=""
 DRY_RUN=""
 NO_MERGE=false
 MERGE_ONLY=false
+GLOBAL_TIMELINE=""
 
 # 解析选项
 while [[ $# -gt 0 ]]; do
@@ -170,6 +190,14 @@ while [[ $# -gt 0 ]]; do
             MERGE_ONLY=true
             shift
             ;;
+        --global-timeline)
+            GLOBAL_TIMELINE="true"
+            shift
+            ;;
+        --no-global-timeline)
+            GLOBAL_TIMELINE="false"
+            shift
+            ;;
         *)
             echo "⚠️  未知参数: $1"
             shift
@@ -183,6 +211,7 @@ JSONL_ROOT="${JSONL_ROOT:-$DEFAULT_JSONL_ROOT}"
 START_TIME="${START_TIME:-$DEFAULT_START_TIME}"
 END_TIME="${END_TIME:-$DEFAULT_END_TIME}"
 DRY_RUN="${DRY_RUN:-$DEFAULT_DRY_RUN}"
+GLOBAL_TIMELINE="${GLOBAL_TIMELINE:-$DEFAULT_GLOBAL_TIMELINE}"
 
 # 检查traces目录是否存在
 if [ ! -d "$TRACES_DIR" ]; then
@@ -207,14 +236,15 @@ echo "========================================================================"
 echo "重标记 traces 为全局时间线"
 echo "========================================================================"
 echo "配置参数:"
-echo "  TRACES_DIR  : $TRACES_DIR"
-echo "  DB          : $DB"
-echo "  JSONL_ROOT  : $JSONL_ROOT"
-echo "  START_TIME  : ${START_TIME:-<不限>}"
-echo "  END_TIME    : ${END_TIME:-<不限>}"
-echo "  DRY_RUN     : $DRY_RUN"
-echo "  NO_MERGE    : $NO_MERGE"
-echo "  MERGE_ONLY  : $MERGE_ONLY"
+echo "  TRACES_DIR      : $TRACES_DIR"
+echo "  DB              : $DB"
+echo "  JSONL_ROOT      : $JSONL_ROOT"
+echo "  START_TIME      : ${START_TIME:-<不限>}"
+echo "  END_TIME        : ${END_TIME:-<不限>}"
+echo "  DRY_RUN         : $DRY_RUN"
+echo "  NO_MERGE        : $NO_MERGE"
+echo "  MERGE_ONLY      : $MERGE_ONLY"
+echo "  GLOBAL_TIMELINE : $GLOBAL_TIMELINE"
 echo "========================================================================"
 echo ""
 
@@ -230,6 +260,7 @@ _DB = os.environ.get('RETIME_DB')
 _JSONL_ROOT = os.environ.get('RETIME_JSONL_ROOT')
 _DB_START_TIME = os.environ.get('RETIME_DB_START_TIME', '')
 _DB_END_TIME = os.environ.get('RETIME_DB_END_TIME', '')
+_GLOBAL_TIMELINE = os.environ.get('RETIME_GLOBAL_TIMELINE', 'true').lower() == 'true'
 
 # 读取原始脚本
 with open(os.environ.get('PYTHON_SCRIPT'), 'r') as f:
@@ -255,6 +286,9 @@ for line in lines:
     elif re.match(r'^DB_END_TIME\s*=\s*', stripped):
         indent = len(line) - len(line.lstrip())
         new_lines.append(' ' * indent + f'DB_END_TIME = "{_DB_END_TIME}"')
+    elif re.match(r'^GLOBAL_TIMELINE\s*=\s*', stripped):
+        indent = len(line) - len(line.lstrip())
+        new_lines.append(' ' * indent + f'GLOBAL_TIMELINE = {_GLOBAL_TIMELINE}')
     else:
         new_lines.append(line)
 
@@ -269,6 +303,7 @@ export RETIME_DB="$DB"
 export RETIME_JSONL_ROOT="$JSONL_ROOT"
 export RETIME_DB_START_TIME="$START_TIME"
 export RETIME_DB_END_TIME="$END_TIME"
+export RETIME_GLOBAL_TIMELINE="$GLOBAL_TIMELINE"
 export PYTHON_SCRIPT="$PYTHON_SCRIPT"
 
 # 构建 Python 命令参数
@@ -291,7 +326,7 @@ echo "========================================================================"
 echo "✅ 完成！"
 echo "========================================================================"
 if [ "$DRY_RUN" = "False" ]; then
-    OUTPUT_DIR="${TRACES_DIR}_global"
+    OUTPUT_DIR="${TRACES_DIR}_${g_or_l}"
     echo "  输出目录: $OUTPUT_DIR"
     if [ "$NO_MERGE" = false ] && [ "$MERGE_ONLY" = false ]; then
         echo "  合并文件: $OUTPUT_DIR/merged.jsonl"

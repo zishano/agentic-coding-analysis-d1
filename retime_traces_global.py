@@ -48,6 +48,7 @@ DB_END_TIME   = ""        # 例: "2026-08-28 14:40:00"
 
 # 运行模式
 DRY_RUN  = False     # True=只打印将怎样改, 不写文件; False=真正写入
+GLOBAL_TIMELINE = True  # True=统一全局时间线; False=每个trace保持独立时间(从0开始)
 # 输出: 固定不覆盖原文件夹, 结果写入 "<源文件夹>_global/" 新文件夹, 内部文件名保持不变
 # ============================================================
 
@@ -178,7 +179,10 @@ def retime_trace_file(path, db_map, jsonl_root, global_start, out_dir, dry_run=F
     rebuilds each request's t directly from the DB timestamp:
         t = (request's absolute DB timestamp) - global_start
     So the result depends only on the DB, never on prior runs — running this
-    script any number of times yields the same output.
+    script any number times yields the same output.
+
+    When global_start is None (独立时间线模式), the trace is copied as-is without
+    modifying timestamps.
     """
     with open(path) as f:
         trace = json.load(f)
@@ -188,9 +192,17 @@ def retime_trace_file(path, db_map, jsonl_root, global_start, out_dir, dry_run=F
     if parent_jsonl is None:
         print(f"  ⚠️ 找不到父会话 jsonl (prefix={prefix}), 跳过 {os.path.basename(path)}")
         return False
+
+    # 独立时间线模式：直接复制trace，不修改时间戳
     if global_start is None:
-        print(f"  ⚠️ 全局起点未算出, 跳过 {os.path.basename(path)}")
-        return False
+        out_path = os.path.join(out_dir, os.path.basename(path))
+        if dry_run:
+            print(f"  [dry-run] {os.path.basename(path)}: 保持独立时间(不修改) → {os.path.basename(path)}")
+        else:
+            with open(out_path, 'w') as f:
+                f.write(json.dumps(trace, ensure_ascii=False, separators=(',', ':')))
+            print(f"  ✅ {os.path.basename(path)}: 保持独立时间(已复制)")
+        return True
 
     conv_start = earliest_db_time(parent_jsonl, db_map)
     if conv_start is None:
@@ -279,7 +291,11 @@ def main():
     merge_only = "--merge-only" in sys.argv[2:]
 
     # 输出文件夹 = "<源文件夹>_global", 内部文件名保持不变, 不覆盖原文件夹。
-    out_dir = traces_dir.rstrip("/") + "_global"
+    if GLOBAL_TIMELINE:
+        out_dir = traces_dir.rstrip("/") + "_global"
+    else:
+        out_dir = traces_dir.rstrip("/") + "_local"
+
     merge_out = os.path.join(out_dir, "merged.jsonl")
 
     # ---- CONFIG 区取值 ----
@@ -288,6 +304,7 @@ def main():
     start_dt = parse_cli_time(DB_START_TIME)
     end_dt   = parse_cli_time(DB_END_TIME)
     dry_run  = DRY_RUN
+    global_timeline = GLOBAL_TIMELINE
 
     # --merge-only: 跳过重标, 直接对已有 _global/*.json 合并
     if merge_only:
@@ -309,6 +326,7 @@ def main():
     print(f"  JSONL    : {jsonl_root}")
     print(f"  时间过滤 : {start_dt or '-'} ~ {end_dt or '-'}")
     print(f"  输出目录 : {out_dir if not dry_run else '(dry-run 不写)'}")
+    print(f"  全局时间线: {'是' if global_timeline else '否(保持各trace独立时间)'}")
     print(f"  模式     : {'dry-run(只打印不写)' if dry_run else '写入新文件夹(原文件夹不动, 文件名不变)'}")
     print("=" * 70)
 
@@ -338,13 +356,18 @@ def main():
         print("❌ 没有任何 trace 能关联到 db 请求时间")
         sys.exit(1)
 
-    global_start = min((cs for cs, _ in conv_starts.values()))
-    print(f"\n  🌐 全局起点 t=0 = {global_start.isoformat()}  (最早启动的会话)")
-    print("     各会话相对全局起点的偏移(offset):")
-    for path, (cs, pj) in sorted(conv_starts.items(), key=lambda kv: kv[1][0]):
-        off = (cs - global_start).total_seconds()
-        marker = "  ← t=0 起点" if off == 0 else ""
-        print(f"         {os.path.basename(path):<18} offset={off:>8.1f}s  start={cs.isoformat()}{marker}")
+    # 如果不使用全局时间线，全局起点使用每个会话自己的启动时间
+    if global_timeline:
+        global_start = min((cs for cs, _ in conv_starts.values()))
+        print(f"\n  🌐 全局起点 t=0 = {global_start.isoformat()}  (最早启动的会话)")
+        print("     各会话相对全局起点的偏移(offset):")
+        for path, (cs, pj) in sorted(conv_starts.items(), key=lambda kv: kv[1][0]):
+            off = (cs - global_start).total_seconds()
+            marker = "  ← t=0 起点" if off == 0 else ""
+            print(f"         {os.path.basename(path):<18} offset={off:>8.1f}s  start={cs.isoformat()}{marker}")
+    else:
+        print(f"\n  ⚠️  独立时间线模式: 每个trace保持各自的时间(从0开始)，不统一到全局时间轴")
+        global_start = None
 
     # ---------- Pass 2: 重标记每个 trace ----------
     print("\n=== Pass 2: 重标记 t ===")

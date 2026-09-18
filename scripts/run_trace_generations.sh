@@ -53,12 +53,12 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # ============================================================
 # *** 配置区域：根据你的实际路径修改 ***
 # ============================================================
-DEFAULT_DB="/mnt/nvme1n1/data/lmk/PROJECT/claude-code-proxy-p1/requests.db"
-DEFAULT_JSONL_ROOT="/home/ai_lab/.claude/projects"
+DEFAULT_DB="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/tmp/tmp_20260917/requests.db"
+DEFAULT_JSONL_ROOT="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/tmp/tmp_20260918/projects"
 DEFAULT_OUT_ROOT="$PROJECT_DIR/traces-d1"
 DEFAULT_LOG_DIR="$PROJECT_DIR/logs-d1"
-DEFAULT_START_TIME="2026-09-07T13:00:00+08:00"  # 例: "2026-08-28T11:00:00+08:00"
-DEFAULT_END_TIME="2026-10-07T14:00:00+08:00"    # 例: "2026-08-28T13:00:00+08:00"
+DEFAULT_START_TIME="2026-09-15T00:00:00+08:00"  # 例: "2026-08-28T11:00:00+08:00"
+DEFAULT_END_TIME="2026-09-16T09:30:00+08:00"    # 例: "2026-08-28T13:00:00+08:00"
 DEFAULT_BLOCK_SIZE=64
 DEFAULT_MIN_REQUESTS=1
 DEFAULT_INCLUDE_SUBAGENTS="true"
@@ -283,8 +283,8 @@ echo ""
 
 # 生成时间戳
 RUN_TAG=$(date +"%Y%m%d_%H%M%S")
-OUT_DIR="$OUT_ROOT/traces-$RUN_TAG"
-LOG_FILE="$LOG_DIR/run_$RUN_TAG.log"
+OUT_DIR="$OUT_ROOT/traces-$RUN_TAG-$START_TIME-$END_TIME"
+LOG_FILE="$LOG_DIR/run_$RUN_TAG-$START_TIME-$END_TIME.log"
 
 mkdir -p "$OUT_DIR"
 
@@ -436,7 +436,7 @@ def main():
 
     # 优化：如果指定了时间范围且 message_id 数量较少，只处理相关的 JSONL 目录
     relevant_dirs = JSONL_DIRS
-    if (DB_START_TIME or DB_END_TIME) and n_ids < 100000:
+    if (DB_START_TIME or DB_END_TIME) and n_ids < 1000:
         print(f"\n💡 优化: message_id 数量较少 ({n_ids})，预筛选 JSONL 目录...")
         # 读取 message_id_index
         try:
@@ -471,10 +471,10 @@ def main():
                             check_lines = float('inf')
                         elif file_size < 5 * 1024 * 1024:
                             # 中等文件，检查前 500 行
-                            check_lines = 500
+                            check_lines = 50000
                         else:
                             # 大文件，检查前 1000 行
-                            check_lines = 1000
+                            check_lines = 100000
 
                         with open(jsonl_file) as f:
                             for i, line in enumerate(f):
