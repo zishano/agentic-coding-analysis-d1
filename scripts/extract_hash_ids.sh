@@ -24,7 +24,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # *** 配置区域：根据你的实际路径修改 ***
 # ============================================================
 # 默认路径
-DEFAULT_INPUT="$PROJECT_DIR/traces-d1/traces-20260908_094608_global/merged.jsonl"
+DEFAULT_INPUT="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/traces-d1/traces-20260918_093301-2026-09-16T00:00:00+08:00-2026-09-17T19:30:00+08:00_global/merged.jsonl"
 DEFAULT_OUTPUT="$PROJECT_DIR/hash_ids_merged"
 # ============================================================
 

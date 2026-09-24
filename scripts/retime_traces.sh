@@ -36,10 +36,8 @@ DEFAULT_USE_LOCAL_HASH_IDS="false"
 # 默认 traces 目录（可选，留空表示必须在命令行指定）
 # 示例: DEFAULT_TRACES_DIR="$PROJECT_DIR/traces-d1/traces-20260908_094608"
 DEFAULT_TRACES_DIR="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/traces-d1/traces-20260918_093301-2026-09-16T00:00:00+08:00-2026-09-17T19:30:00+08:00"
-
 # 默认是否合并输出
 DEFAULT_DO_MERGE=true
-
 # 默认是否使用全局时间线（true: 统一时间线，false: 保持独立时间线）
 DEFAULT_GLOBAL_TIMELINE=false
 # ============================================================

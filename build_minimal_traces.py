@@ -329,7 +329,7 @@ class MinimalTraceBuilder:
 
         # Create minimal record
         record = {
-            "t": round(timestamp_seconds, 1),
+            "t": round(timestamp_seconds, 2),
             "type": req_type_short,
             "model": model,
             "in": len(all_tokens),
