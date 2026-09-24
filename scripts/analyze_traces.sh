@@ -1,181 +1,63 @@
 #!/bin/bash
-# 分析 trace 文件并生成可视化图表
+# 分析 Claude Code traces 数据并生成分布图
 #
 # 用法:
-#   ./scripts/analyze_traces.sh                                          # 使用默认配置
-#   ./scripts/analyze_traces.sh --sampling 1.0                           # 指定采样间隔为1秒
-#   ./scripts/analyze_traces.sh --sampling 0.5 --update-time-mapping     # 自动更新时间映射再分析
+#   ./scripts/analyze_traces.sh
 #
-# 参数:
-#   --traces-dir PATH      trace JSON 文件目录 (默认: 从配置读取)
-#   --db PATH              数据库路径 (默认: 从配置读取)
-#   --jsonl-root PATH      JSONL 文件根目录 (默认: 从配置读取)
-#   --sampling INTERVAL    采样时间间隔(秒)，如 1.0, 0.5, 0.1 (默认: 事件采样)
-#   --update-time-mapping  从数据库自动更新 TIME_MAPPING 配置
-#   --help                 显示帮助
+# 说明:
+#   生成7个指标的分布图:
+#   1. Input tokens per turn (主会话)
+#   2. Output tokens per turn (主会话)
+#   3. Uncached input tokens per turn (主会话 + 子代理)
+#   4. Turns per conversation
+#   5. Subagent request ISL (子代理输入序列长度)
+#   6. Subagent request OSL (子代理输出序列长度)
+#   7. Cached fraction per turn (主会话 + 子代理)
 
-set -e
+set -euo pipefail
 
-# 获取脚本所在目录的父目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 # ============================================================
 # *** 配置区域：根据你的实际路径修改 ***
 # ============================================================
-# 默认 trace 文件目录
-DEFAULT_TRACES_DIR="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/traces-d1/traces-20260918_134348-2026-09-15T00:00:00+08:00-2026-09-16T09:30:00+08:00"
-# 默认数据库路径
-DEFAULT_DB="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/tmp/tmp_20260917/requests.db"
-# 默认 JSONL 根目录
-DEFAULT_JSONL_ROOT="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/tmp/tmp_20260918/projects"
+INPUT_JSONL="/mnt/nvme1n1/data/lmk/Github/tair-kvcache/kv_cache_manager/optimizer/tools/kimi_k3_test/trace_0918/merged_20260918.jsonl"
+OUTPUT_DIR="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/plots/plots_0924_test"
+PYTHON_SCRIPT="/mnt/nvme1n1/data/lmk/PROJECT/agentic-coding-analysis-d1/analyze_traces.py"
 # ============================================================
 
-# Python 分析脚本路径
-ANALYZE_SCRIPT="$PROJECT_DIR/analyze_all_comprehensive.py"
-
-# 显示帮助信息
-show_help() {
-    cat << EOF
-分析 trace 文件并生成可视化图表
-
-用法:
-  $0 [选项]
-
-选项:
-  --traces-dir PATH      trace JSON 文件目录
-                         (默认: $DEFAULT_TRACES_DIR)
-
-  --db PATH              数据库路径
-                         (默认: $DEFAULT_DB)
-
-  --jsonl-root PATH      JSONL 文件根目录
-                         (默认: $DEFAULT_JSONL_ROOT)
-
-  --sampling INTERVAL    并发数量统计的采样时间间隔(秒)
-                         例如: 1.0 (1秒), 0.5 (0.5秒), 0.1 (0.1秒)
-                         不指定则使用事件采样模式
-
-  --update-time-mapping  从数据库自动更新 TIME_MAPPING 配置
-
-  --help                 显示此帮助信息
-
-示例:
-  # 使用默认配置运行
-  $0
-
-  # 使用1秒采样间隔
-  $0 --sampling 1.0
-
-  # 自动更新时间映射再分析(0.5秒采样)
-  $0 --update-time-mapping --sampling 0.5
-
-  # 指定自定义路径
-  $0 --traces-dir /path/to/traces --db /path/to/db --sampling 0.1
-
-输出:
-  生成的图表文件将保存在 trace 文件目录中
-
-EOF
-}
-
-# 解析命令行参数
-TRACES_DIR="$DEFAULT_TRACES_DIR"
-DB="$DEFAULT_DB"
-JSONL_ROOT="$DEFAULT_JSONL_ROOT"
-SAMPLING=""
-UPDATE_MAPPING=false
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --traces-dir)
-            TRACES_DIR="$2"
-            shift 2
-            ;;
-        --db)
-            DB="$2"
-            shift 2
-            ;;
-        --jsonl-root)
-            JSONL_ROOT="$2"
-            shift 2
-            ;;
-        --sampling)
-            SAMPLING="$2"
-            shift 2
-            ;;
-        --update-time-mapping)
-            UPDATE_MAPPING=true
-            shift
-            ;;
-        --help)
-            show_help
-            exit 0
-            ;;
-        *)
-            echo "❌ 未知参数: $1"
-            echo "使用 --help 查看帮助"
-            exit 1
-            ;;
-    esac
-done
-
-# 检查分析脚本是否存在
-if [ ! -f "$ANALYZE_SCRIPT" ]; then
-    echo "❌ 错误: 找不到分析脚本: $ANALYZE_SCRIPT"
+# 检查 Python 脚本是否存在
+if [ ! -f "$PYTHON_SCRIPT" ]; then
+    echo "ERROR: 找不到 Python 脚本: $PYTHON_SCRIPT" >&2
     exit 1
 fi
 
-# 检查 trace 目录是否存在
-if [ ! -d "$TRACES_DIR" ]; then
-    echo "❌ 错误: trace 目录不存在: $TRACES_DIR"
+# 检查输入文件是否存在
+if [ ! -f "$INPUT_JSONL" ]; then
+    echo "ERROR: 找不到输入文件: $INPUT_JSONL" >&2
     exit 1
 fi
 
+# 创建输出目录
+mkdir -p "$OUTPUT_DIR"
+
 echo "========================================================================"
-echo "Trace 分析工具"
+echo "分析 Claude Code traces 数据"
 echo "========================================================================"
-echo "Traces 目录  : $TRACES_DIR"
-echo "数据库       : $DB"
-echo "JSONL 根目录 : $JSONL_ROOT"
-if [ -n "$SAMPLING" ]; then
-    echo "采样间隔     : ${SAMPLING}s"
-else
-    echo "采样模式     : 事件采样(默认)"
-fi
+echo "输入文件: $INPUT_JSONL"
+echo "输出目录: $OUTPUT_DIR"
 echo "========================================================================"
 echo ""
 
-# 构建 Python 命令
-cd "$TRACES_DIR"
-PYTHON_CMD="python3 $ANALYZE_SCRIPT --traces-dir $TRACES_DIR"
+# 执行 Python 脚本
+python3 "$PYTHON_SCRIPT" \
+    --input "$INPUT_JSONL" \
+    --output-dir "$OUTPUT_DIR"
 
-if [ -n "$SAMPLING" ]; then
-    PYTHON_CMD="$PYTHON_CMD --sampling $SAMPLING"
-fi
-
-if [ "$UPDATE_MAPPING" = true ]; then
-    PYTHON_CMD="$PYTHON_CMD --update-time-mapping --db $DB --jsonl-root $JSONL_ROOT"
-fi
-
-# 执行分析
-echo "🚀 开始分析 trace 文件..."
-echo "执行命令: $PYTHON_CMD"
 echo ""
-
-$PYTHON_CMD
-
-if [ $? -eq 0 ]; then
-    echo ""
-    echo "========================================================================"
-    echo "✅ 分析完成！"
-    echo "========================================================================"
-    echo "生成的图表文件位于: $TRACES_DIR"
-    echo ""
-    echo "生成的文件:"
-    ls -lh "$TRACES_DIR"/*.png 2>/dev/null | tail -10
-else
-    echo ""
-    echo "❌ 分析失败"
-    exit 1
-fi
+echo "========================================================================"
+echo "✅ 完成！"
+echo "========================================================================"
+echo "图表已保存到: $OUTPUT_DIR"
+echo ""
